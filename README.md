@@ -16,6 +16,9 @@ Distatus creates two files called, status.json and config.json. These two files 
 - Start Minimised
 - Start on Logon
 
+## Demo
+![Demo](https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExejMzamVqMm9oMHRpaGN4YjRlamw3bXQ0bmdrZmxsb2tqc3N1dWZodSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/spVYCv878KaJq10zfb/giphy.gif)
+
 ## Help
 If you have an issue, raise it in Github or add my discord and send me the error messages and stuff. Or just leave it.
 
