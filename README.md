@@ -1,4 +1,4 @@
-<span style="color: red;">THIS IS NOT OPEN SOURCE YET, IT WILL BE ONE DAY</span>
+<span style="color: red;">I know this code isn't great but this is the first real time I've used Tkinter plus the application is so small that I didn't optimise it</span>
 
 # Distatus
 Distatus is a UI based Discord status changer.
