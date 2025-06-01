@@ -1,3 +1,5 @@
+<span style="color: red;">THIS IS NOT OPEN SOURCE YET, IT WILL BE ONE DAY</span>
+
 # Distatus
 Distatus is a UI based Discord status changer.
 
@@ -11,3 +13,5 @@ Distatus creates two files called, status.json and config.json. These two files 
 - TIME
 - Start Minimised
 - Start on Logon
+
+<span style="color: red;">IF YOU'RE UNSURE ABOUT IT, YOU CAN RUN THROUGH VIRUSTOTAL</span>
