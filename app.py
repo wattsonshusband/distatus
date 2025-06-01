@@ -24,7 +24,7 @@ icon_path = os.path.join(base_path, 'assets', 'distatus.ico')
 
 def add_to_startup(file_path=""):
   if file_path == "":
-    file_path = base_path + '\\distatus.exe'
+    file_path = os.getcwd() + '\\distatus.exe'
 
   startup_path = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
   shortcut_path = os.path.join(startup_path, 'distatus.lnk')
@@ -47,6 +47,7 @@ def add_to_startup(file_path=""):
 
 def remove_from_startup():
   startup_path = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
+  print(f"Startup path: {startup_path}")
   shortcut_path = os.path.join(startup_path, 'distatus.lnk')
 
   try:
@@ -247,6 +248,9 @@ class App:
       add_to_startup()
     else:
       print("Already set to start on startup.")
+  else:
+    if check_startup():
+      remove_from_startup()
 
   data['TOKEN'] = token
   data['TIME'] = time
@@ -260,12 +264,15 @@ class App:
 
  def close(self):
   if self.icon:
-   self.icon.stop()
+    self.icon.stop()
+
   self.root.destroy()
+
   for proc in multiprocessing.active_children():
-   print(f"Terminating process: {proc.name}")
-   if proc.is_alive():
+    print(f"Terminating process: {proc.name}")
     proc.terminate()
+
+  exit(1)
 
  def open_window(self):
   self.icon.stop()
@@ -341,23 +348,20 @@ class App:
   self.root.after(0, lambda: self.statusList.configure(values=[status['msg'] for status in self.statusLines]))
 
 if __name__ == "__main__":
-  # try:
-  #   print("Starting discord-status by @nero")
-  #   app = App()
-  #   app.root.mainloop()
+  try:
+    print("Starting discord-status by @nero")
+    multiprocessing.freeze_support()
+    app = App()
+    app.root.mainloop()
     
-  # except KeyboardInterrupt:
-  #   for proc in multiprocessing.active_children():
-  #     proc.terminate()
+  except KeyboardInterrupt:
+    for proc in multiprocessing.active_children():
+      proc.terminate()
 
-  # except Exception as e:
-  #   print(f"An error occurred: {e}")
-  #   CTkMessagebox(title="Error", message=str(e), icon="cancel")
-  #   for proc in multiprocessing.active_children():
-  #     proc.terminate()
+  except Exception as e:
+    print(f"An error occurred: {e}")
+    CTkMessagebox(title="Error", message=str(e), icon="cancel")
+    for proc in multiprocessing.active_children():
+      proc.terminate()
 
-  #   exit(1)
-  print("Starting discord-status by @nero")
-  multiprocessing.freeze_support()
-  app = App()
-  app.root.mainloop()
+    exit(1)
