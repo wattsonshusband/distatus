@@ -1,7 +1,7 @@
 import json
 import getpass
 import os
-import multiprocessing
+import threading
 import tkinter
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -39,6 +39,7 @@ def add_to_startup(file_path=""):
     )
     shell_link.SetPath(file_path)
     shell_link.SetDescription('Start Distatus')
+    shell_link.SetWorkingDirectory(os.path.dirname(file_path))
     persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
     persist_file.Save(shortcut_path, 0)
     print(f"Shortcut created at {shortcut_path}")
@@ -66,10 +67,10 @@ def check_startup():
   return os.path.exists(shortcut_path)
 
 try:
- with open(f"config.json", 'r') as configFile:
+ with open(f"{os.getcwd()}\\config.json", 'r') as configFile:
   data = json.load(configFile)
 except FileNotFoundError:
- with open(f"config.json", 'w') as configFile:
+ with open(f"{os.getcwd()}\\config.json", 'w') as configFile:
   default_config = {
    "TOKEN": None,
    "TIME": 10,
@@ -89,9 +90,9 @@ class App:
  def __init__(self):
   try:
    self.icon = None
-   self.statusLines = json.load(open(f'status.json', 'r'))
+   self.statusLines = json.load(open(f'{os.getcwd()}\\status.json', 'r'))
   except FileNotFoundError:
-   with open(f'status.json', 'w') as statusFile:
+   with open(f'{os.getcwd()}\\status.json', 'w') as statusFile:
     json.dump([], statusFile, indent=1)
    self.statusLines = []
 
@@ -104,7 +105,10 @@ class App:
    if not check_startup():
     add_to_startup()
 
-  self.check_token_proc = multiprocessing.Process(target=self.check_token)
+  self.check_token_stop_event = threading.Event()
+  self.update_status_stop_event = threading.Event()
+
+  self.check_token_proc = threading.Thread(target=self.check_token, name="check_token", daemon=True)
   self.check_token_proc.start()
 
   self.root = tk.Tk()
@@ -186,10 +190,10 @@ class App:
   sv_ttk.set_theme("dark")
 
  def check_status(self):
-  self.statusLines = json.load(open(f'status.json', 'r'))
+  self.statusLines = json.load(open(f'{os.getcwd()}\\status.json', 'r'))
 
  def start_update_process(self):
-  if "update_status" in multiprocessing.active_children():
+  if "update_status" in threading.enumerate():
    if self.update_status_proc and self.update_status_proc.is_alive():
     print("Status update process is already running.")
     return
@@ -198,21 +202,18 @@ class App:
    print("No token found, please set your token in the config.")
    return
 
-  self.update_status_proc = multiprocessing.Process(target=self.update_status)
+  self.update_status_proc = threading.Thread(target=self.update_status, name="update_status", daemon=True)
   self.update_status_proc.start()
   print("Status update process started.")
 
-  for proc in multiprocessing.active_children():
-    if proc.name == "check_token":
-      print(f"Terminating process: {proc.name}")
-      if proc.is_alive():
-        proc.terminate()
-
+  self.check_token_stop_event.set()
+  print("Token check process stopped.")
+ 
  def check_token(self):
   foundToken = False
-  while not foundToken:
+  while not foundToken and not self.check_token_stop_event.is_set():
    try:
-    with open(f"config.json", 'r') as configFile:
+    with open(f"{os.getcwd()}\\config.json", 'r') as configFile:
      print("Checking for token in config file...")
      data = json.load(configFile)
      if data['TOKEN'] is not None and data['TOKEN'] != "":
@@ -223,7 +224,7 @@ class App:
       self.start_update_process()
    except FileNotFoundError:
     print("Config file not found, waiting for it to be created.")
-   time.sleep(5)
+   self.check_token_stop_event.wait(5)
 
  def save_config(self):
   token = self.tokenVar.get()
@@ -257,7 +258,7 @@ class App:
   data['START_MINIMISED'] = startMinimized
   data['START_ON_STARTUP'] = startOnStartup
 
-  with open(f'config.json', 'w') as configFile:
+  with open(f'{os.getcwd()}\\config.json', 'w') as configFile:
    json.dump(data, configFile, indent=1)
 
   CTkMessagebox(title="Success", message="Config saved successfully.", icon="check")
@@ -266,13 +267,14 @@ class App:
   if self.icon:
     self.icon.stop()
 
+  app.check_token_stop_event.set()
+  app.update_status_stop_event.set()
+
+  app.check_token_proc.join(timeout=1)
+  app.update_status_proc.join(timeout=1)
+  
+  time.sleep(2)
   self.root.destroy()
-
-  for proc in multiprocessing.active_children():
-    print(f"Terminating process: {proc.name}")
-    proc.terminate()
-
-  exit(1)
 
  def open_window(self):
   self.icon.stop()
@@ -287,26 +289,35 @@ class App:
 
  def update_status(self):
   # refresh the status lines every cycle
-  while True:
-   self.check_status()
-   for statusLine in self.statusLines:
-    jsonData = {
-     "custom_status": { "text": statusLine['msg'] }
-    }
+  while not self.update_status_stop_event.is_set():
+    self.check_status()
+    if self.statusLines == []:
+      print("No status lines found, waiting for them to be added.")
+      self.update_status_stop_event.wait(data['TIME'])
+      return 
 
-    if statusLine['emojiName'] != "" and statusLine['emojiID'] != "":
-     jsonData['custom_status'].update({ "emoji_name": statusLine['emojiName'], "emoji_id": statusLine['emojiID'] })
+    for statusLine in self.statusLines:
+      if self.update_status_stop_event.is_set():
+        print("Status update process stopped.")
+        break
 
-    try:
-      resp = requests.patch(patchURL, headers=headers, json=jsonData)
-      if resp.status_code == 401:
-        print("Invalid token. Please update your config.")
-        return
-    except Exception as e:
-      print(f"Error updating status: {e}")
-      continue
+      jsonData = {
+        "custom_status": { "text": statusLine['msg'] }
+      }
 
-    time.sleep(data['TIME'])
+      if statusLine['emojiName'] != "" and statusLine['emojiID'] != "":
+        jsonData['custom_status'].update({ "emoji_name": statusLine['emojiName'], "emoji_id": statusLine['emojiID'] })
+
+      try:
+        resp = requests.patch(patchURL, headers=headers, json=jsonData)
+        if resp.status_code == 401:
+          print("Invalid token. Please update your config.")
+          return
+      except Exception as e:
+        print(f"Error updating status: {e}")
+        continue
+
+      self.update_status_stop_event.wait(data['TIME'])
 
  def remove_statusline(self):
   option = self.statusList.get()
@@ -317,7 +328,7 @@ class App:
   for status in self.statusLines:
    if status['msg'] == option:
     self.statusLines.remove(status)
-    with open(f'status.json', 'w') as statusFile:
+    with open(f'{os.getcwd()}\\status.json', 'w') as statusFile:
      json.dump(self.statusLines, statusFile, indent=1)
     CTkMessagebox(title="Success", message="Status line removed successfully.", icon="check")
 
@@ -331,6 +342,7 @@ class App:
   
   if (emojiName.get() == "" and emojiID.get() != "") or (emojiName.get() != "" and emojiID.get() == ""):
     CTkMessagebox(title="Error", message="Please fill both emoji fields or leave both empty.", icon="cancel")
+    return
   
   newStatus = {
    "msg": msg.get(),
@@ -339,7 +351,7 @@ class App:
   }
 
   self.statusLines.append(newStatus)
-  with open(f'status.json', 'w') as statusFile:
+  with open(f'{os.getcwd()}\\status.json', 'w') as statusFile:
    json.dump(self.statusLines, statusFile, indent=1)
 
   CTkMessagebox(title="Success", message="Status line added successfully.", icon="check")
@@ -350,18 +362,39 @@ class App:
 if __name__ == "__main__":
   try:
     print("Starting discord-status by @nero")
-    multiprocessing.freeze_support()
     app = App()
     app.root.mainloop()
-    
+
   except KeyboardInterrupt:
-    for proc in multiprocessing.active_children():
-      proc.terminate()
+    print("Exiting discord-status by @nero")
+    if app.icon:
+      app.icon.stop()
+    
+    app.check_token_stop_event.set()
+    app.update_status_stop_event.set()
+
+    if app.check_token_proc != None:
+      app.check_token_proc.join(timeout=1)
+
+    if app.update_status_proc != None:
+      app.update_status_proc.join(timeout=1)
+
+    app.root.destroy()
+    print("Application closed successfully.")
 
   except Exception as e:
-    print(f"An error occurred: {e}")
-    CTkMessagebox(title="Error", message=str(e), icon="cancel")
-    for proc in multiprocessing.active_children():
-      proc.terminate()
+    print("Error happened so exiting discord-status by @nero")
+    if app.icon:
+      app.icon.stop()
+    
+    app.check_token_stop_event.set()
+    app.update_status_stop_event.set()
 
-    exit(1)
+    if app.check_token_proc != None:
+      app.check_token_proc.join(timeout=1)
+
+    if app.update_status_proc != None:
+      app.update_status_proc.join(timeout=1)
+
+    app.root.destroy()
+    print("Application closed successfully.")
