@@ -16,4 +16,9 @@ Distatus creates two files called, status.json and config.json. These two files 
 - Start Minimised
 - Start on Logon
 
+## Help
+If you have an issue, raise it in Github or add my discord and send me the error messages and stuff. Or just leave it.
+
+![Dexter Morgan](https://media1.tenor.com/m/gAu4_gOJppUAAAAC/shrug-idk.gif)
+
 <span style="color: red;">IF YOU'RE UNSURE ABOUT IT, YOU CAN RUN THROUGH VIRUSTOTAL</span>
