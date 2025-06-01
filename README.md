@@ -6,6 +6,8 @@ Distatus is a UI based Discord status changer.
 ## Compiler
 Distatus is built using Python and uses Pyinstaller as a compiler.
 
+build.py is also included so if you want to compile the binary yourself you can.
+
 ## Configuration
 Distatus creates two files called, status.json and config.json. These two files are used for holding the user token and the statuses that it cycles.
 
