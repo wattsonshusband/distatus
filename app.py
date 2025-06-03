@@ -22,6 +22,8 @@ import sys
 base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
 icon_path = os.path.join(base_path, 'assets', 'distatus.ico')
 
+patchURL = 'https://discord.com/api/v10/users/@me/settings'
+
 def add_to_startup(file_path=""):
   if file_path == "":
     file_path = os.getcwd() + '\\distatus.exe'
@@ -66,40 +68,61 @@ def check_startup():
 
   return os.path.exists(shortcut_path)
 
-try:
- with open(f"{os.getcwd()}\\config.json", 'r') as configFile:
-  data = json.load(configFile)
-except FileNotFoundError:
- with open(f"{os.getcwd()}\\config.json", 'w') as configFile:
-  default_config = {
-   "TOKEN": None,
-   "TIME": 10,
-   "START_MINIMISED": False,
-   "START_ON_STARTUP": False
-  }
-  json.dump(default_config, configFile, indent=1)
-  data = default_config
+def create_appdata_folder():
+  appdata_folder = os.path.join(os.getenv("APPDATA"), "Distatus")
+  if not os.path.exists(appdata_folder):
+    os.makedirs(appdata_folder)
+    print(f"AppData folder created at {appdata_folder}")
+  else:
+    print(f"AppData folder already exists at {appdata_folder}")
 
-if data['TIME'] < 10:
- data['TIME'] = 10
+def find_appdata_folder():
+  appdata_folder = os.path.join(os.getenv("APPDATA"), "Distatus")
+  if os.path.exists(appdata_folder):
+    return appdata_folder
+  else:
+    print("AppData folder not found.")
+    return None
 
-patchURL = 'https://discord.com/api/v10/users/@me/settings'
-headers = { "authorization": data['TOKEN'] }
-
+create_appdata_folder()
 class App:
  def __init__(self):
   try:
+   self.appdataFolder = find_appdata_folder()
    self.icon = None
-   self.statusLines = json.load(open(f'{os.getcwd()}\\status.json', 'r'))
+
+   self.statusFile = f'{self.appdataFolder}\\status.json'
+   self.configFile = f'{self.appdataFolder}\\config.json'
+
+   self.statusLines = json.load(open(self.statusFile, 'r'))
   except FileNotFoundError:
-   with open(f'{os.getcwd()}\\status.json', 'w') as statusFile:
+   with open(self.statusFile, 'w') as statusFile:
     json.dump([], statusFile, indent=1)
    self.statusLines = []
 
-  self.token = data['TOKEN'] if 'TOKEN' in data else ""
-  self.time = data['TIME'] if 'TIME' in data else 10
-  self.startMinimised = data['START_MINIMISED'] if 'START_MINIMISED' in data else False
-  self.startOnStartup = data['START_ON_STARTUP'] if 'START_ON_STARTUP' in data else False
+  try:
+    with open(self.configFile, 'r') as configFile:
+      self.data = json.load(configFile)
+  except FileNotFoundError:
+    with open(self.configFile, 'w') as configFile:
+      default_config = {
+      "TOKEN": None,
+      "TIME": 10,
+      "START_MINIMISED": False,
+      "START_ON_STARTUP": False
+      }
+      json.dump(default_config, configFile, indent=1)
+      self.data = default_config
+
+  self.headers = { "authorization": self.data['TOKEN'] }
+
+  if self.data['TIME'] < 10:
+    self.data['TIME'] = 10
+
+  self.token = self.data['TOKEN'] if 'TOKEN' in self.data else ""
+  self.time = self.data['TIME'] if 'TIME' in self.data else 10
+  self.startMinimised = self.data['START_MINIMISED'] if 'START_MINIMISED' in self.data else False
+  self.startOnStartup = self.data['START_ON_STARTUP'] if 'START_ON_STARTUP' in self.data else False
 
   if self.startOnStartup:
    if not check_startup():
@@ -190,7 +213,7 @@ class App:
   sv_ttk.set_theme("dark")
 
  def check_status(self):
-  self.statusLines = json.load(open(f'{os.getcwd()}\\status.json', 'r'))
+  self.statusLines = json.load(open(self.statusFile, 'r'))
 
  def start_update_process(self):
   if "update_status" in threading.enumerate():
@@ -213,13 +236,13 @@ class App:
   foundToken = False
   while not foundToken and not self.check_token_stop_event.is_set():
    try:
-    with open(f"{os.getcwd()}\\config.json", 'r') as configFile:
+    with open(self.configFile, 'r') as configFile:
      print("Checking for token in config file...")
      data = json.load(configFile)
      if data['TOKEN'] is not None and data['TOKEN'] != "":
       foundToken = True
       self.token = data['TOKEN']
-      headers["authorization"] = self.token
+      self.headers["authorization"] = self.token
       print("Token found, starting status update process.")
       self.start_update_process()
    except FileNotFoundError:
@@ -253,13 +276,13 @@ class App:
     if check_startup():
       remove_from_startup()
 
-  data['TOKEN'] = token
-  data['TIME'] = time
-  data['START_MINIMISED'] = startMinimized
-  data['START_ON_STARTUP'] = startOnStartup
+  self.data['TOKEN'] = token
+  self.data['TIME'] = time
+  self.data['START_MINIMISED'] = startMinimized
+  self.data['START_ON_STARTUP'] = startOnStartup
 
-  with open(f'{os.getcwd()}\\config.json', 'w') as configFile:
-   json.dump(data, configFile, indent=1)
+  with open(self.configFile, 'w') as configFile:
+   json.dump(self.data, configFile, indent=1)
 
   CTkMessagebox(title="Success", message="Config saved successfully.", icon="check")
 
@@ -270,15 +293,23 @@ class App:
   app.check_token_stop_event.set()
   app.update_status_stop_event.set()
 
-  app.check_token_proc.join(timeout=1)
-  app.update_status_proc.join(timeout=1)
+  if hasattr(app, 'check_token_proc'):
+    app.check_token_proc.join(timeout=1)
+
+  if hasattr(app, 'update_status_proc'):
+    app.update_status_proc.join(timeout=1)
   
   time.sleep(2)
   self.root.destroy()
 
+ def bring_to_front(self):
+  self.root.deiconify()
+  self.root.lift()
+  self.root.focus_force()
+
  def open_window(self):
   self.icon.stop()
-  self.root.after(10, self.root.deiconify())
+  self.root.after(10, self.bring_to_front())
 
  def minimise(self):
   self.root.withdraw()
@@ -293,8 +324,8 @@ class App:
     self.check_status()
     if self.statusLines == []:
       print("No status lines found, waiting for them to be added.")
-      self.update_status_stop_event.wait(data['TIME'])
-      return 
+      self.update_status_stop_event.wait(self.data['TIME'])
+      continue 
 
     for statusLine in self.statusLines:
       if self.update_status_stop_event.is_set():
@@ -309,7 +340,7 @@ class App:
         jsonData['custom_status'].update({ "emoji_name": statusLine['emojiName'], "emoji_id": statusLine['emojiID'] })
 
       try:
-        resp = requests.patch(patchURL, headers=headers, json=jsonData)
+        resp = requests.patch(patchURL, headers=self.headers, json=jsonData)
         if resp.status_code == 401:
           print("Invalid token. Please update your config.")
           return
@@ -317,7 +348,7 @@ class App:
         print(f"Error updating status: {e}")
         continue
 
-      self.update_status_stop_event.wait(data['TIME'])
+      self.update_status_stop_event.wait(self.data['TIME'])
 
  def remove_statusline(self):
   option = self.statusList.get()
@@ -328,7 +359,7 @@ class App:
   for status in self.statusLines:
    if status['msg'] == option:
     self.statusLines.remove(status)
-    with open(f'{os.getcwd()}\\status.json', 'w') as statusFile:
+    with open(self.statusFile, 'w') as statusFile:
      json.dump(self.statusLines, statusFile, indent=1)
     CTkMessagebox(title="Success", message="Status line removed successfully.", icon="check")
 
@@ -351,7 +382,7 @@ class App:
   }
 
   self.statusLines.append(newStatus)
-  with open(f'{os.getcwd()}\\status.json', 'w') as statusFile:
+  with open(self.statusFile, 'w') as statusFile:
    json.dump(self.statusLines, statusFile, indent=1)
 
   CTkMessagebox(title="Success", message="Status line added successfully.", icon="check")
@@ -373,10 +404,10 @@ if __name__ == "__main__":
     app.check_token_stop_event.set()
     app.update_status_stop_event.set()
 
-    if app.check_token_proc != None:
+    if hasattr(app, 'check_token_proc'):
       app.check_token_proc.join(timeout=1)
 
-    if app.update_status_proc != None:
+    if hasattr(app, 'update_status_proc'):
       app.update_status_proc.join(timeout=1)
 
     app.root.destroy()
@@ -390,10 +421,10 @@ if __name__ == "__main__":
     app.check_token_stop_event.set()
     app.update_status_stop_event.set()
 
-    if app.check_token_proc != None:
+    if hasattr(app, 'check_token_proc'):
       app.check_token_proc.join(timeout=1)
 
-    if app.update_status_proc != None:
+    if hasattr(app, 'update_status_proc'):
       app.update_status_proc.join(timeout=1)
 
     app.root.destroy()
