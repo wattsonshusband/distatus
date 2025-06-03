@@ -24,4 +24,9 @@ If you have an issue, raise it in Github or add my discord and send me the error
 
 ![Dexter Morgan](https://media1.tenor.com/m/gAu4_gOJppUAAAAC/shrug-idk.gif)
 
+## License
+
+This project is licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License](https://creativecommons.org/licenses/by-nc/4.0/).  
+Commercial use is prohibited without explicit permission. For commercial inquiries, contact jamzsmith109@gmail.com
+
 <span style="color: red;">IF YOU'RE UNSURE ABOUT IT, YOU CAN RUN THROUGH VIRUSTOTAL</span>
